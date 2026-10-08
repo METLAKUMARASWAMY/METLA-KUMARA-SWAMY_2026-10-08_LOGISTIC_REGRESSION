@@ -1,0 +1,328 @@
+Telco Customer Churn - Customer Churn Prediction using Logistic Regression
+
+Business Scenario
+-----------------
+A telecom company is facing customer churn. When customers leave, the company
+loses revenue and spends extra money to acquire new customers.
+
+The main question is simple: using customer information, can we estimate whether
+a customer is likely to leave the company?
+
+For this analysis I used the Telco Customer Churn dataset. The target variable is
+Churn, where No means the customer stayed and Yes means the customer churned.
+
+Dataset: Telco Customer Churn Dataset (Kaggle)
+
+
+1. Load the dataset and examine the columns
+--------------------------------------------
+
+Python code:
+
+import pandas as pd
+
+df = pd.read_csv("WA_Fn-UseC_-Telco-Customer-Churn.csv")
+
+print(df.head())
+print(df.shape)
+print(df.columns)
+print(df.info())
+print(df.isnull().sum())
+
+What I found:
+- Number of rows: 7043
+- Number of columns: 21
+- Target column: Churn
+- customerID is only an identifier.
+- TotalCharges needs numeric conversion.
+
+
+2. Select input features and target
+-----------------------------------
+
+The input features are the customer attributes except customerID and Churn.
+
+Python code:
+
+X = df.drop(["Churn", "customerID"], axis=1)
+y = df["Churn"].map({"No": 0, "Yes": 1})
+
+X = pd.get_dummies(X, drop_first=True)
+
+Here, X contains customer information and y contains the churn outcome.
+
+
+3. Clean the data
+-----------------
+
+TotalCharges contains some blank values, so I converted it to numeric and filled
+the missing values with 0.
+
+Python code:
+
+df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
+df["TotalCharges"] = df["TotalCharges"].fillna(0)
+
+
+4. Split the data into training and testing data
+------------------------------------------------
+
+I used an 80:20 split. The training data is used to learn the model and the
+testing data is used to evaluate it on unseen records.
+
+Python code:
+
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.20, random_state=42, stratify=y
+)
+
+This gives:
+- Training data: 5634 rows
+- Testing data: 1409 rows
+
+
+5. Build and train the model
+----------------------------
+
+I used Logistic Regression because the target has two classes: Churn and Stay.
+
+Python code:
+
+from sklearn.linear_model import LogisticRegression
+
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train, y_train)
+
+The model learns the relationship between customer attributes and churn.
+
+
+6. Predict churn for unseen test data
+-------------------------------------
+
+Python code:
+
+y_pred = model.predict(X_test)
+y_prob = model.predict_proba(X_test)[:, 1]
+
+print(y_pred)
+print(y_prob)
+
+The model gives both:
+- Class prediction: Likely to Churn / Likely to Stay
+- Churn probability between 0 and 1.
+
+
+7. Evaluate model accuracy
+--------------------------
+
+Python code:
+
+from sklearn.metrics import accuracy_score
+
+accuracy = accuracy_score(y_test, y_pred)
+
+print("Accuracy:", accuracy)
+print("Accuracy (%):", accuracy * 100)
+
+Using the 80:20 split with random_state=42:
+- Accuracy: 0.8048
+- Accuracy: 80.48%
+
+
+8. Confusion Matrix
+-------------------
+
+Python code:
+
+from sklearn.metrics import confusion_matrix
+
+cm = confusion_matrix(y_test, y_pred)
+
+print(cm)
+
+The confusion matrix is used to identify:
+- True Positive: Churn correctly identified
+- True Negative: Stay correctly identified
+- False Positive: Stay wrongly predicted as Churn
+- False Negative: Churn wrongly predicted as Stay
+
+
+9. Confusion Matrix visualization
+---------------------------------
+
+Python code:
+
+from sklearn.metrics import ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+
+ConfusionMatrixDisplay(
+    confusion_matrix=cm,
+    display_labels=["Stay", "Churn"]
+).plot()
+
+plt.title("Customer Churn - Confusion Matrix")
+plt.show()
+
+
+10. Precision, Recall and F1-score
+----------------------------------
+
+Python code:
+
+from sklearn.metrics import classification_report
+
+print(classification_report(
+    y_test,
+    y_pred,
+    target_names=["Stay", "Churn"],
+    zero_division=0
+))
+
+These metrics show how well the model identifies churn customers.
+
+
+11. Business analysis
+---------------------
+
+Python code:
+
+tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+
+print("Churn customers correctly identified:", tp)
+print("Non-churn customers wrongly classified:", fp)
+print("Churn customers missed:", fn)
+
+Using this model:
+- Churn customers correctly identified (TP): 208
+- Non-churn customers wrongly classified (FP): 109
+- Churn customers missed (FN): 166
+- Non-churn customers correctly identified (TN): 926
+
+
+12. Predict churn for a new customer
+------------------------------------
+
+Python code:
+
+new_customer = pd.DataFrame({
+    "gender": ["Male"],
+    "SeniorCitizen": [0],
+    "Partner": ["No"],
+    "Dependents": ["No"],
+    "tenure": [5],
+    "PhoneService": ["Yes"],
+    "MultipleLines": ["No"],
+    "InternetService": ["Fiber optic"],
+    "OnlineSecurity": ["No"],
+    "OnlineBackup": ["No"],
+    "DeviceProtection": ["No"],
+    "TechSupport": ["No"],
+    "StreamingTV": ["Yes"],
+    "StreamingMovies": ["Yes"],
+    "Contract": ["Month-to-month"],
+    "PaperlessBilling": ["Yes"],
+    "PaymentMethod": ["Electronic check"],
+    "MonthlyCharges": [85.50],
+    "TotalCharges": [427.50]
+})
+
+new_customer = pd.get_dummies(new_customer, drop_first=True)
+new_customer = new_customer.reindex(columns=X.columns, fill_value=0)
+
+prediction = model.predict(new_customer)[0]
+probability = model.predict_proba(new_customer)[0][1]
+
+print("Churn Probability:", probability)
+print("Predicted Result:",
+      "Likely to Churn" if prediction == 1 else "Likely to Stay")
+
+
+13. Business interpretation
+---------------------------
+
+Is it better to wrongly flag a loyal customer as churn, or miss a customer
+who is actually going to leave?
+
+For a telecom company, missing an actual churn customer (False Negative) is
+generally more costly because the company loses the opportunity to retain that
+customer and future revenue.
+
+However, too many False Positives can also waste money on unnecessary
+retention offers.
+
+
+14. One improvement
+-------------------
+
+One useful improvement would be to tune the classification threshold instead of
+always using 0.5. A lower threshold can help identify more potential churn
+customers and reduce False Negatives.
+
+Other improvements include adding stronger customer-behavior features and using
+cross-validation to obtain a more reliable estimate of model performance.
+
+
+15. Complete Python program
+---------------------------
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# Load dataset
+df = pd.read_csv("WA_Fn-UseC_-Telco-Customer-Churn.csv")
+
+# Clean TotalCharges
+df["TotalCharges"] = pd.to_numeric(df["TotalCharges"], errors="coerce")
+df["TotalCharges"] = df["TotalCharges"].fillna(0)
+
+# Features and target
+X = df.drop(["Churn", "customerID"], axis=1)
+y = df["Churn"].map({"No": 0, "Yes": 1})
+X = pd.get_dummies(X, drop_first=True)
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.20, random_state=42, stratify=y
+)
+
+# Train model
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train, y_train)
+
+# Predict
+y_pred = model.predict(X_test)
+
+# Evaluate
+accuracy = accuracy_score(y_test, y_pred)
+print("Accuracy:", accuracy)
+
+cm = confusion_matrix(y_test, y_pred)
+print("Confusion Matrix:")
+print(cm)
+
+print(classification_report(
+    y_test, y_pred,
+    target_names=["Stay", "Churn"],
+    zero_division=0
+))
+
+
+Final conclusion
+----------------
+The Logistic Regression model predicts whether a telecom customer is likely to
+churn or stay and also provides the probability of churn.
+
+The confusion matrix shows how many churn customers were correctly identified
+and how many customers were misclassified.
+
+In business terms, False Negatives are generally more costly because they
+represent customers who were going to leave but were not identified in time.
+
+A useful improvement is to tune the classification threshold to improve churn
+detection and reduce missed churn customers.
